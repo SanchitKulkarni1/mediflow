@@ -7,7 +7,6 @@ PRIORITY_RANK = {
 def vertex_book_lab(resource: str, priority: str, hospital_state: dict):
     lab = hospital_state["labs"][resource]
 
-    # Case 1: Slot available → book directly
     if lab["available_slots"] > 0:
         lab["available_slots"] -= 1
         lab["queue"].append({
@@ -19,8 +18,6 @@ def vertex_book_lab(resource: str, priority: str, hospital_state: dict):
             "remaining_slots": lab["available_slots"]
         }
 
-    # Case 2: No slots → check for preemption
-    # Find lowest-priority booking
     lowest = min(
         lab["queue"],
         key=lambda x: PRIORITY_RANK[x["priority"]],
@@ -28,7 +25,6 @@ def vertex_book_lab(resource: str, priority: str, hospital_state: dict):
     )
 
     if lowest and PRIORITY_RANK[priority] > PRIORITY_RANK[lowest["priority"]]:
-        # Preempt
         lab["queue"].remove(lowest)
         lab["queue"].append({
             "priority": priority,
@@ -39,7 +35,6 @@ def vertex_book_lab(resource: str, priority: str, hospital_state: dict):
             "replaced": lowest["priority"]
         }
 
-    # Case 3: Cannot preempt → queue
     lab["queue"].append({
         "priority": priority,
         "status": "QUEUED"
@@ -48,3 +43,19 @@ def vertex_book_lab(resource: str, priority: str, hospital_state: dict):
         "status": "QUEUED",
         "reason": "Higher or equal priority already occupying slot"
     }
+
+
+def vertex_execute_plan(plan: dict, hospital_state: dict):
+    results = []
+
+    for action in plan["actions"]:
+        if action["type"] == "BOOK_LAB":
+            results.append(
+                vertex_book_lab(
+                    resource=action["resource"],
+                    priority=plan["priority"],
+                    hospital_state=hospital_state
+                )
+            )
+
+    return results

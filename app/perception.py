@@ -2,6 +2,9 @@ from google import genai
 from google.genai import types
 import json
 import os
+from dotenv import load_dotenv
+
+load_dotenv()
 
 client = genai.Client(api_key=os.getenv("GEMINI_API_KEY"))
 
@@ -23,7 +26,7 @@ Output STRICT JSON ONLY:
 
 def extract_clinical_data(audio_bytes: bytes):
     response = client.models.generate_content(
-        model="gemini-1.5-pro",
+        model="gemini-2.5-flash",
         contents=[
             EXTRACTION_PROMPT,
             types.Part.from_bytes(data=audio_bytes, mime_type="audio/webm")
