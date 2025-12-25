@@ -1,13 +1,12 @@
 # app/main.py
 from fastapi import FastAPI, UploadFile, File
-from fastapi.middleware.cors import CORSMiddleware # Don't forget imports
-import asyncio
+from fastapi.middleware.cors import CORSMiddleware
 
-# Ensure these imports match your file structure
-from adk_runner import run_triage_planner 
+from adk_runner import run_triage_planner
 from perception import extract_clinical_data
 from hospital_state import hospital_state
-from executor import vertex_execute_plan
+from executor import vertex_execute_plan, approve_preemption
+from audit_log import AUDIT_LOG
 
 app = FastAPI(
     title="MediFlow API",
@@ -15,7 +14,6 @@ app = FastAPI(
     version="1.0.0"
 )
 
-# ... CORS config ...
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -24,21 +22,20 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+# -------------------------
+# Core triage endpoint
+# -------------------------
 @app.post("/triage")
 async def triage(audio: UploadFile = File(...)):
     audio_bytes = await audio.read()
 
-    # 1. Perception
     clinical_data = extract_clinical_data(audio_bytes)
 
-    # 2. ADK Planning Agent
     triage_plan = await run_triage_planner(
-        clinical_data=clinical_data, 
+        clinical_data=clinical_data,
         hospital_state=hospital_state
     )
 
-    # 3. Execution (✅ FIXED HERE)
-    # You must pass 'hospital_state' because the function expects it
     execution_result = vertex_execute_plan(triage_plan, hospital_state)
 
     return {
@@ -46,3 +43,28 @@ async def triage(audio: UploadFile = File(...)):
         "triage_plan": triage_plan,
         "execution_result": execution_result
     }
+
+# -------------------------
+# Audit trail
+# -------------------------
+@app.get("/audit-log")
+def get_audit_log():
+    return {
+        "events": AUDIT_LOG
+    }
+
+# -------------------------
+# Doctor approval endpoint
+# -------------------------
+@app.post("/approve-preemption")
+def approve_preemption_endpoint(
+    request_id: str,
+    resource: str,
+    incoming_priority: str
+):
+    return approve_preemption(
+        request_id=request_id,
+        resource=resource,
+        incoming_priority=incoming_priority,
+        hospital_state=hospital_state
+    )
